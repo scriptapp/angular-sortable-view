@@ -1,6 +1,6 @@
 //
 // Copyright Kamil Pękala http://github.com/kamilkp
-// angular-sortable-view v0.0.17 2017/12/26
+// angular-sortable-view v0.0.15 2015/01/18
 //
 
 ;(function(window, angular){
@@ -19,27 +19,6 @@
 		}
 		function removeSortableElements(key){
 			delete ROOTS_MAP[key];
-		}
-		function getCoords(rect) {
-			return [
-				{ x: rect.left, y: rect.top },
-				{ x: rect.left + rect.width, y: rect.top },
-				{ x: rect.left, y: rect.top + rect.height },
-				{ x: rect.left + rect.width, y: rect.top + rect.height },
-				{ x: rect.left + rect.width/2, y: rect.top + rect.height/2 },
-			];
-		}
-		function getDistance(point, coords) {
-			if (
-				point.x >= coords[0].x && point.x <= coords[1].x &&
-				point.y >= coords[0].y && point.y <= coords[2].y
-			) {
-				return 0;
-			}
-
-			return Math.min.apply(Math, coords.map(function(coord){
-				return (coord.x - point.x)*(coord.x - point.x) + (coord.y - point.y)*(coord.y - point.y);
-			}));
 		}
 
 		var sortingInProgress;
@@ -61,8 +40,8 @@
 				var $target;     // last best candidate
 				var isGrid       = false;
 				var onSort       = $parse($attrs.svOnSort);
-				
-				console.log("Using Script Sortable View!");
+
+
 
 				// ----- hack due to https://github.com/angular/angular.js/issues/8044
 				$attrs.svOnStart = $attrs.$$element[0].attributes['sv-on-start'];
@@ -79,12 +58,18 @@
 					return sortingInProgress;
 				};
 
+				this.isSortEnabled = function(){
+					let isEnabledAttribute =  $attrs.$$element[0].attributes['sv-enable'];
+					return isEnabledAttribute == null || isEnabledAttribute.value == null || isEnabledAttribute.value.trim().length === 0 || isEnabledAttribute.value.toLowerCase() !== 'false';
+				}
+
 				if($attrs.svGrid){ // sv-grid determined explicite
 					isGrid = $attrs.svGrid === "true" ? true : $attrs.svGrid === "false" ? false : null;
 					if(isGrid === null)
 						throw 'Invalid value of sv-grid attribute';
 				}
 				else{
+					console.log("Using Script Sortable View!", $attrs.$$element[0].attributes);
 					// check if at least one of the lists have a grid like layout
 					$scope.$watchCollection(function(){
 						return getSortableElements(mapKey);
@@ -144,9 +129,7 @@
 						}
 
 						svOriginal.after($placeholder);
-						if (!originatingPart.copyMode) {
-							svOriginal.addClass('ng-hide');
-						}
+						svOriginal.addClass('ng-hide');
 
 						// cache options, helper and original element reference
 						$original = svOriginal;
@@ -168,7 +151,7 @@
 						y: mouse.y + document.body.scrollTop - mouse.offset.y*svRect.height
 					});
 
-					// ------ manage candidates
+					// ----- manage candidates
 					getSortableElements(mapKey).forEach(function(se, index){
 						if(opts.containment != null){
 							// TODO: optimize this since it could be calculated only once when the moving begins
@@ -178,51 +161,24 @@
 							) return; // element is not within allowed containment
 						}
 						var rect = se.element[0].getBoundingClientRect();
-						var seCoords = getCoords(rect);
-
 						var center = {
 							x: ~~(rect.left + rect.width/2),
 							y: ~~(rect.top + rect.height/2)
 						};
-
-						var centerHoriz = {
-							x: ~~(rect.left + rect.width/2),
-							y: ~~(rect.top)
-						};
-
-						var centerVert = {
-							x: ~~(rect.left),
-							y: ~~(rect.top + rect.height/2)
-						};
-
-						if(
-							!se.container && // not the container element
-							(se.element[0].scrollHeight || se.element[0].scrollWidth)
-						){ // element is visible
-							var sePart = se.getPart();
+						if(!se.container && // not the container element
+							(se.element[0].scrollHeight || se.element[0].scrollWidth)){ // element is visible
 							candidates.push({
 								element: se.element,
-								q: getDistance(mouse, seCoords),
-								view: sePart,
+								q: (center.x - mouse.x)*(center.x - mouse.x) + (center.y - mouse.y)*(center.y - mouse.y),
+								view: se.getPart(),
 								targetIndex: se.getIndex(),
-								after: shouldBeAfter(center, mouse, ('isGrid' in sePart) ? sePart.isGrid : isGrid)
+								after: shouldBeAfter(center, mouse, isGrid)
 							});
 						}
-
-						if(
-							se.container &&
-							!se.element[0].querySelector('[sv-element]:not(.sv-placeholder):not(.sv-source)') // empty container
-						){
-							var c = center;
-							if (se.centerVariant === 'vertical') {
-								c = centerVert;
-							} else if (se.centerVariant === 'horizontal') {
-								c = centerHoriz;
-							}
-
+						if(se.container && !se.element[0].querySelector('[sv-element]:not(.sv-placeholder):not(.sv-source)')){ // empty container
 							candidates.push({
 								element: se.element,
-								q: (c.x - mouse.x)*(c.x - mouse.x) + (c.y - mouse.y)*(c.y - mouse.y),
+								q: (center.x - mouse.x)*(center.x - mouse.x) + (center.y - mouse.y)*(center.y - mouse.y),
 								view: se.getPart(),
 								targetIndex: 0,
 								container: true
@@ -230,8 +186,12 @@
 						}
 					});
 					var pRect = $placeholder[0].getBoundingClientRect();
+					var pCenter = {
+						x: ~~(pRect.left + pRect.width/2),
+						y: ~~(pRect.top + pRect.height/2)
+					};
 					candidates.push({
-						q: getDistance(mouse, getCoords(pRect)),
+						q: (pCenter.x - mouse.x)*(pCenter.x - mouse.x) + (pCenter.y - mouse.y)*(pCenter.y - mouse.y),
 						element: $placeholder,
 						placeholder: true
 					});
@@ -260,7 +220,7 @@
 				this.$drop = function(originatingPart, index, options){
 					if(!$placeholder) return;
 
-					if(options.revert && !($target && $target.view && $target.view.noRevert)){
+					if(options.revert){
 						var placeholderRect = $placeholder[0].getBoundingClientRect();
 						var helperRect = $helper[0].getBoundingClientRect();
 						var distance = Math.sqrt(
@@ -369,22 +329,14 @@
 					id: $scope.$id,
 					element: $element,
 					model: model,
-					copyMode: $attrs.svCopy === 'true',
-					noRevert: $attrs.svNoRevert === 'true',
 					scope: $scope
 				};
-
-				if ('isGrid' in $attrs) {
-					$scope.part.isGrid = $attrs.isGrid === 'true';
-				}
-
 				$scope.$sortableRoot = $sortable;
 
 				var sortablePart = {
 					element: $element,
 					getPart: $scope.$ctrl.getPart,
-					container: true,
-					centerVariant: $attrs.svCenter || 'both',
+					container: true
 				};
 				$sortable.addToSortableElements(sortablePart);
 				$scope.$on('$destroy', function(){
@@ -444,13 +396,16 @@
 				var moveExecuted;
 
 				function onMousedown(e){
+
+					console.log("Mouse Down" )
+					if($controllers[1].isSortEnabled()){
+						console.log("Sorting Enabled!")
+
+
 					touchFix(e);
 
 					if($controllers[1].sortingInProgress()) return;
 					if(e.button != 0 && e.type === 'mousedown') return;
-
-					var svHandleDisabledAttr = e.target.attributes['sv-handle-disabled'];
-					if(svHandleDisabledAttr && svHandleDisabledAttr.value === 'true') return;
 
 					moveExecuted = false;
 					var opts = $parse($attrs.svElement)($scope);
@@ -535,6 +490,10 @@
 							y: e.clientY,
 							offset: pointerOffset
 						}, clone, $element, placeholder, $controllers[0].getPart(), $scope.$index);
+					}
+
+					} else {
+						console.log("Sorting Disabled!")
 					}
 				}
 			}
@@ -681,4 +640,4 @@
 		};
 	}
 
-})(window, angular);
+})(window, window.angular);
