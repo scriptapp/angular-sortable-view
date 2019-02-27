@@ -61,6 +61,8 @@
 				var $target;     // last best candidate
 				var isGrid       = false;
 				var onSort       = $parse($attrs.svOnSort);
+				
+				console.log("Using Script Sortable View!");
 
 				// ----- hack due to https://github.com/angular/angular.js/issues/8044
 				$attrs.svOnStart = $attrs.$$element[0].attributes['sv-on-start'];
