@@ -1,5 +1,7 @@
-angular-sortable-view v0.0.17 [![Bower version](https://badge.fury.io/bo/angular-sortable-view.svg)](http://badge.fury.io/bo/angular-sortable-view)
+angular-sortable-view v0.0.18
 =================
+ 
+Forked from https://github.com/kamilkp/angular-sortable-view by the Script Team for Internal Use 
 
 Fully declarative (multi)sortable for AngularJS
 
